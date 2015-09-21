@@ -59,6 +59,7 @@ class openstackg5k::profile::nova::compute {
   } 
 
   class { '::nova::network':
-    enabled => true
+    enabled         => true,
+    create_networks => false
   } 
 }
