@@ -9,8 +9,8 @@ class openstackg5k::role::controller inherits ::openstack::role {
   class { '::openstack::profile::ceilometer::api': } ->
   class { '::openstack::profile::glance::auth': } ->
   class { '::openstack::profile::cinder::api': } ->
-  class { '::openstack::profile::nova::api': } ->
-  class { '::openstack::profile::neutron::server': } ->
+  class { '::openstackg5k::profile::nova::api': } ->
+  #  class { '::openstack::profile::neutron::server': } ->
   class { '::openstack::profile::heat::api': } ->
   # Matt (install the storage on the same node)
   # the following are borrowed from openstack::role::storage

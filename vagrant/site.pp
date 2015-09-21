@@ -10,8 +10,12 @@ node 'network.localdomain' {
   include ::openstackg5k::role::network
 }
 
-node 'compute.localdomain' {
-  include ::openstack::role::compute
+node 'compute1.localdomain' {
+  include ::openstackg5k::role::compute
+}
+
+node 'compute2.localdomain' {
+  include ::openstackg5k::role::compute
 }
 
 node 'tempest.localdomain' {

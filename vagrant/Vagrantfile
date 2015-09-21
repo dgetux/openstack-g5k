@@ -18,9 +18,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.define "puppet" do |puppet|
 
     puppet.vm.network :private_network, ip: "192.168.11.3"
-    puppet.vm.network :private_network, ip: "192.168.22.3"
-    puppet.vm.network :private_network, ip: "172.16.33.3"
-    puppet.vm.network :private_network, ip: "172.16.44.3"
     puppet.vm.hostname = "puppet"
     
     puppet.vm.provider "virtualbox" do |v|
@@ -36,9 +33,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.define "control" do |control|
     control.vm.network :private_network, ip: "192.168.11.4"
-    control.vm.network :private_network, ip: "192.168.22.4"
-    control.vm.network :private_network, ip: "172.16.33.4"
-    control.vm.network :private_network, ip: "172.16.44.4"
 
     control.vm.hostname = "control.localdomain"
 
@@ -56,43 +50,33 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   end
 
-  config.vm.define "network" do |network|
-    network.vm.network :private_network, ip: "192.168.11.6"
-    network.vm.network :private_network, ip: "192.168.22.6"
-    network.vm.network :private_network, ip: "172.16.33.6"
-    network.vm.network :private_network, ip: "172.16.44.6"
-
-    network.vm.hostname = "network.localdomain"
-
-    network.vm.provider "virtualbox" do |v|
-      v.memory = 1024
-      v.customize ["modifyvm", :id, "--nicpromisc3", "allow-all"]
-    end
-
-    network.vm.provision "shell", path: "install_puppet.sh"
-
-  end
-
-  config.vm.define "compute" do |compute|
+  config.vm.define "compute1" do |compute|
     compute.vm.network :private_network, ip: "192.168.11.7"
-    compute.vm.network :private_network, ip: "192.168.22.7"
-    compute.vm.network :private_network, ip: "172.16.33.7"
-    compute.vm.network :private_network, ip: "172.16.44.7"
 
-    compute.vm.hostname = "compute.localdomain"
+    compute.vm.hostname = "compute1.localdomain"
 
     compute.vm.provider "virtualbox" do |v|
       v.memory = 3000
       v.cpus = 2
+      v.customize ["modifyvm", :id, "--nicpromisc2", "allow-all"]
     end
 
     compute.vm.provision "shell", path: "install_puppet.sh"
   end
 
-  config.vm.define "router" do |router|
-    router.vm.network :private_network, ip: "192.168.22.254"
-    router.vm.hostname = "router.localdomain"
-    router.vm.provision "shell", path: "install_router.sh"
+  config.vm.define "compute2" do |compute|
+    compute.vm.network :private_network, ip: "192.168.11.8"
+
+    compute.vm.hostname = "compute2.localdomain"
+
+    compute.vm.provider "virtualbox" do |v|
+      v.memory = 3000
+      v.cpus = 2
+      v.customize ["modifyvm", :id, "--nicpromisc1", "allow-all"]
+      v.customize ["modifyvm", :id, "--nicpromisc2", "allow-all"]
+    end
+
+    compute.vm.provision "shell", path: "install_puppet.sh"
   end
 
 end

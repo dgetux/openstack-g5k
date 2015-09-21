@@ -7,32 +7,23 @@
 #
 
 role :puppet_master do
-  $myxp.get_deployed_nodes('puppet')
+  translate_vlan($myxp.get_deployed_nodes('puppet'), XP5K::Config[:jobname])
 end
 
 role :puppet_clients do
+  translate_vlan(
   $myxp.get_deployed_nodes('controller') +
-  $myxp.get_deployed_nodes('network') + 
-  $myxp.get_deployed_nodes('compute')
+  $myxp.get_deployed_nodes('compute'), XP5K::Config[:jobname])
 end
 
 role :controller do
- $myxp.get_deployed_nodes('controller')
-end
-
-role :network do
-  $myxp.get_deployed_nodes('network')
+  translate_vlan($myxp.get_deployed_nodes('controller'), XP5K::Config[:jobname])
 end
 
 role :compute do
-  $myxp.get_deployed_nodes('compute')
-end
-
-role :router do
-  $myxp.get_deployed_nodes('router')
+  translate_vlan($myxp.get_deployed_nodes('compute'), XP5K::Config[:jobname])
 end
 
 role :frontend do
   "#{XP5K::Config[:user]}@#{XP5K::Config[:site]}"
 end
-

@@ -29,11 +29,11 @@ XP5K::Config[:computes]   ||= 1
 
 
 cluster = "and cluster='" + XP5K::Config[:cluster] + "'" if !XP5K::Config[:cluster].empty?
-nodes = 3 + XP5K::Config[:computes].to_i
+nodes = 2 + XP5K::Config[:computes].to_i
 $myxp = XP5K::XP.new(:logger => logger)
 
 $myxp.define_job({
-  :resources  => ["slash_22=1,{type='kavlan-local'}/vlan=1, {virtual!='none' #{cluster}}/nodes=#{nodes}, walltime=#{XP5K::Config[:walltime]}"],
+  :resources  => ["{type='#{XP5K::Config[:vlantype]}'}/vlan=1, {virtual!='none' #{cluster}}/nodes=#{nodes}, walltime=#{XP5K::Config[:walltime]}"],
   :site       => "#{XP5K::Config[:site]}",
   :retry      => true,
   :goal       => "100%",
@@ -42,7 +42,6 @@ $myxp.define_job({
   :roles      =>  [
     XP5K::Role.new({ :name => 'puppet', :size => 1 }),
     XP5K::Role.new({ :name => 'controller', :size => 1 }),
-    XP5K::Role.new({ :name => 'network', :size => 1 }),
     XP5K::Role.new({ :name => 'compute', :size => XP5K::Config[:computes] })
   ],
   :command    => "sleep 206400"
@@ -51,7 +50,8 @@ $myxp.define_job({
 $myxp.define_deployment({
   :site           => XP5K::Config[:site],
   :environment    => "ubuntu-x64-1404",
-  :roles          => %w(puppet controller network compute),
+  :roles          => %w(puppet controller compute),
+  :vlan_from_job  => XP5K::Config[:jobname],
   :key            => File.read(XP5K::Config[:ssh_public]), 
 })
 

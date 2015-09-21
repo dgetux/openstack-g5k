@@ -58,7 +58,6 @@ namespace :setup do
   desc 'Setup a puppet cluster on nodes and configure vlan'
   task :default do 
     puppet::default
-    vlan::default
   end
 
   namespace :puppet do
@@ -138,30 +137,6 @@ namespace :setup do
 
   end # puppet
 
-  namespace :vlan do 
-
-    desc 'Puts the interface in the vlan'
-    task :default do
-      set
-      dhcp
-    end
-
-    task :set do
-      vlanid = $myxp.job_with_name("#{XP5K::Config['jobname']}")['resources_by_type']['vlans'].first.to_i
-      nodes = find_servers :roles => [:controller, :network, :compute]
-      nodes = nodes.map{|n| n.to_s.gsub(/-(\d+)/, '-\1-' + XP5K::Config['management_interface'])}
-      logger.info "Setting in vlan #{vlanid} following nodes : #{nodes.inspect}"
-      root = $myxp.connection.root.sites[XP5K::Config['site'].to_sym]
-      vlan = root.vlans.find { |item| item['uid'] == vlanid.to_s }
-      vlan.submit :nodes => nodes
-    end
-
-    task :dhcp, :roles => [:controller, :network, :compute] do
-      run "dhclient -nw eth1"
-    end
-
- end # vlan
-
 end
 
 namespace :openstack do
@@ -187,7 +162,6 @@ namespace :openstack do
       run "rm -rf /etc/puppet/modules"
       # fix an issue with wrong dependency
       upload "#{openstack_path}/puppet/Puppetfile", "/etc/puppet/Puppetfile", :via => :scp
-      upload "#{openstack_path}/puppet/hiera.yaml", "/etc/puppet/hiera.yaml", :via => :scp
     end 
 
     task :install, :roles => [:puppet_master] do
@@ -204,57 +178,33 @@ namespace :openstack do
     
     desc 'Install the hiera database'
     task :default do
-      subnet
       template
       install
     end
 
-    task :subnet  do
-        frontend = (find_servers :roles => [:frontend]).first
-        jobid = $myxp.job_with_name("#{XP5K::Config['jobname']}")['uid']
-        subnet = (capture "g5k-subnets -j #{jobid} -a", :hosts => frontend).split("\t")
-        # output example : 
-        #     0                1             2            3              4                5                     6
-        # 10.158.4.0/22  10.159.255.255  255.252.0.0 10.159.255.254  10.156.0.0  dns.rennes.grid5000.fr  172.16.111.118
-        cidr =  NetAddr::CIDR.create(subnet[0])
-        # we use the glbal /14 network provided by g5K,
-        # we just make sure to assign ip in the right range.
-        @externalNetwork =  "#{subnet[4]}/14"
-        @gateway = subnet[3]
-        @dns=subnet[-1]
-        @ipstart = cidr.first
-        @ipend = cidr.last
-        puts "First IP: " + @ipstart
-        puts "Last IP : " + @ipend
-        puts "gateway : " + @gateway
-        puts "DNS     : " + @dns
-    end
     task :template do
       set :user, "root"
+      # we assume only one phy nic here 
       # get controller address
       controller = (find_servers :roles => [:controller]).first
       apiNet = clean(capture "facter network_eth0", :hosts => controller)
       apiNetmask = clean(capture "facter netmask_eth0", :hosts => controller)
       # compute the cidr notation (add a custom fact ?)
       apiCidr = IPAddr.new(apiNetmask).to_i.to_s(2).count("1")
-      managementNet = clean(capture "facter network_eth1", :hosts => controller)
-      managementNetmask = clean(capture "facter netmask_eth1", :hosts => controller)
-      managementCidr = IPAddr.new(managementNetmask).to_i.to_s(2).count("1")
+      # since we use only one nic all the network are the same
       @apiNetwork = "#{apiNet}/#{apiCidr}"
-      @managementNetwork = "#{managementNet}/#{managementCidr}"
+      @managementNetwork = @apiNetwork
       @dataNetwork = @managementNetwork
-      @controllerAddressApi = capture "facter ipaddress_eth0", :hosts => controller
-      @controllerAddressManagement = capture "facter ipaddress_eth1", :hosts => controller
-      @controllerAddressManagement = @controllerAddressManagement.gsub("\n", "")
-      @controllerAddressApi = @controllerAddressApi.gsub("\n", "")
-      @allowedHost = @controllerAddressManagement.gsub(/(\d)+\.(\d)+$/, "%.%")
 
-      # storage on the control node.
-      storage = (find_servers :roles => [:controller]).first
-      @storageAddressApi = capture "facter ipaddress_eth0", :hosts => storage
-      @storageAddressManagement = capture "facter ipaddress_eth1", :hosts => storage
-      @storageAddressManagement = @storageAddressManagement.gsub("\n", "")
-      @storageAddressApi = @storageAddressApi.gsub("\n", "")
+      @controllerAddressApi = capture "facter ipaddress_eth0", :hosts => controller
+      @controllerAddressApi = @controllerAddressApi.gsub("\n", "")
+      @controllerAddressManagement = @controllerAddressApi
+
+      @allowedHost = @controllerAddressApi.gsub(/(\d)+\.(\d)+$/, "%.%")
+
+      # storage on controller
+      @storageAddressApi = @controllerAddressApi
+      @storageAddressManagement = @storageAddressApi
 
       template = File.read("#{openstack_path}/templates/common.yaml.erb")
       renderer = ERB.new(template)
@@ -267,6 +217,7 @@ namespace :openstack do
 
     task :install, :roles => [:puppet_master] do
       set :user, "root"
+      upload "#{openstack_path}/puppet/hiera.yaml", "/etc/puppet/hiera.yaml", :via => :scp
       upload("#{openstack_path}/puppet/hiera","/etc/puppet", :via => :scp, :recursive => true)
     end
 
@@ -295,18 +246,11 @@ node '#{controller.first.host}' {
       compute.each do |c|
         manifest << %{
 node '#{c}' {
-  class{'::openstack::role::compute':}
+  class{'::openstackg5k::role::compute':}
 }
       }
       end
-      network = find_servers :roles => [:network]
-      network.each do |n|
-        manifest << %{
-node '#{n}' {
-  class{'::openstackg5k::role::network':}
-}
-        }
-      end
+
       File.write('tmp/site.pp', manifest)
     end
 
@@ -328,7 +272,6 @@ node '#{n}' {
     desc "Launch puppet runs on nodes"
     task :default do
       controller
-      network
       compute
     end
 
@@ -337,15 +280,6 @@ node '#{n}' {
       set :default_environment, proxy
       # it seems that using, :on_error => :continue fails on the following tasks
       # no server for ... we force to true
-      run "puppet agent -t || true"
-    end
-
-    desc 'Provision the other nodes'
-    task :network, :roles => [:network] do
-      set :default_environment, noproxy
-      # force the creation of the bridge
-      run "apt-get install -y openvswitch-switch"
-      run "ovs-vsctl add-br brex && ovs-vsctl add-port brex eth0 && ifconfig eth0 0.0.0.0 && dhclient -nw brex"
       run "puppet agent -t || true"
     end
 
@@ -389,28 +323,6 @@ node '#{n}' {
       end
     end
 
-    task :network, :roles => [:controller] do
-      set :default_environment, rc('test')
-      set :user, "root"
-      controllerAddress = capture "facter ipaddress"
-
-      # get vlan number using the jobname variable
-      vlan = $myxp.job_with_name("#{XP5K::Config[:jobname]}")['resources_by_type']['vlans'].first.to_i
-      # get corresponding IP and add 30 to the c part to not collide with any host of g5k
-      vlan_config = YAML::load_file("#{openstack_path}/config/vlan-config.yaml")
-      ip=vlan_config["#{XP5K::Config[:site]}"][vlan]
-      cidr =  NetAddr::CIDR.create(ip)
-      splited_ip = cidr.first.split('.')
-      c=(splited_ip[2].to_i+30).to_s
-
-      # we choose a range of ips which doen't collide with any host of g5k 
-      # see https://www.grid5000.fr/mediawiki/index.php/User:Lnussbaum/Network#KaVLAN
-      # here 255 hosts only
-      nova_net = controllerAddress.gsub(/(\d)+\.(\d)+$/, c+".0/24")
-      run "nova network-create net-jdoe --bridge br100 --multi-host T --fixed-range-v4 #{nova_net}"
-      run "nova net-list"
-    end
-    
     task :testrc, :roles => [:controller] do
       set :user, "root"
       rc = rc("test")

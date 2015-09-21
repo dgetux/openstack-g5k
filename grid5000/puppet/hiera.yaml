@@ -6,3 +6,4 @@
 :hierarchy:
   - common
   - neutron
+  - nova
